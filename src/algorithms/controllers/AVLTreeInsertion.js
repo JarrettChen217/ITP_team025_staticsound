@@ -150,11 +150,12 @@ export default {
             updateHeight(root, depth);
             updateHeight(temp, depth);
             // update height in the graph
-            chunker.add('recompute heights of t6 and t2', (vis, r, h1, t, h2) => {
+            chunker.add('recompute heights of t6 and t2', (vis, r, h1, t, h2, d, h3) => {
                 vis.graph.updateHeight(r, h1);
                 vis.graph.updateHeight(t, h2);
+                if (d !== null) vis.graph.updateHeight(d, h3);
             },
-                [root.key, root.height, temp.key, temp.height],
+                [root.key, root.height, temp.key, temp.height, D ? D.key : null, D ? D.height : 0],
                 depth,
             );
 
@@ -273,11 +274,12 @@ export default {
             updateHeight(root, depth);
             updateHeight(temp, depth);
             // update height in the graph
-            chunker.add('recompute heights of t2 and t6', (vis, r, h1, t, h2) => {
+            chunker.add('recompute heights of t2 and t6', (vis, r, h1, t, h2, d, h3) => {
                 vis.graph.updateHeight(r, h1);
                 vis.graph.updateHeight(t, h2);
+                if (d !== null) vis.graph.updateHeight(d, h3);
             },
-                [root.key, root.height, temp.key, temp.height],
+                [root.key, root.height, temp.key, temp.height, D ? D.key : null, D ? D.height : 0],
                 depth,
             );
 
@@ -397,18 +399,20 @@ export default {
         function insert(root, key, currIndex, parentNode = null, depth = 1) {
 
             chunker.add('AVLT_Insert(t, k)',
-                (vis, k) => {
+                (vis, k, d, index) => {
+                    if (d === 1) {
+                        vis.array.depatch(index - 1);
+                        vis.array.patch(index);
+                    }
                     vis.graph.setFunctionName("AVLT_Insert");
                     vis.graph.setFunctionInsertText("( t , " + k + " )");
                 },
-                [key],
+                [key, depth, currIndex],
                 depth
             );
 
             if (root === null) {
                 chunker.add('if t = Empty', (vis) => null, [], depth);
-                // Initialize the AVL tree with the first key
-                let root = new AVLNode(key, depth);
                 chunker.add('n = new Node',
                     (vis, r, p, index) => {
                         vis.graph.addNode(r, r, 1);
@@ -422,6 +426,9 @@ export default {
                     [key, parentNode ? parentNode.key : null, currIndex],
                     depth
                 );
+                // Initialize the AVL tree with the first key
+                let root = new AVLNode(key, depth);
+
                 chunker.add('return n',
                     (vis, r, p) => {
                         vis.graph.resetVisitAndSelect(r, p);
@@ -489,7 +496,10 @@ export default {
             chunker.add('balance = left(t).height - right(t).height', (vis, r) => {
                 // vis.graph.setFunctionName(`balance = ${balance}, `);
                 // vis.graph.setFunctionInsertText('case ?');
-                vis.graph.setFunctionBRText(`Node(${r}): balance=${balance}`);
+                vis.graph.setFunctionNode(`${r}`);
+                vis.graph.clearSelect_Circle_Count();
+                vis.graph.setSelect_Circle_Count(r);
+                vis.graph.setFunctionBalance(balance);
             }, [root.key], depth);
 
             let rotateDepth = depth + 1;
@@ -499,24 +509,32 @@ export default {
                 // console.log("LLR");
                 chunker.add('perform right rotation to re-balance t',
                     (vis, r) => {
-                        // vis.graph.setFunctionName(`balance= ${balance}, `);
-                        // vis.graph.setFunctionInsertText('case LL');
-                        vis.graph.setFunctionBRText(`Node(${r}): balance=${balance}, case LL`)
+                        vis.graph.setFunctionName(`Rotaiton: `);
+                        vis.graph.setFunctionInsertText(`LL`);
+                        vis.graph.clearSelect_Circle_Count();
+                        vis.graph.setSelect_Circle_Count(r);
+                        vis.graph.setFunctionNode(`${r}`);
+                        vis.graph.setFunctionBalance(balance);
                     },
                     [root.key],
                     depth
                 );
                 root = LLR(root, parentNode, rotateDepth);
                 chunker.add('return rightRotate(t)', (vis) => {
-                    vis.graph.setFunctionBRText('');
+                    vis.graph.setFunctionNode(null);
+                    vis.graph.clearSelect_Circle_Count();
+                    vis.graph.setFunctionBalance(null);
                 }, [], depth);
             } else if (balance < -1 && key > root.right.key) {
                 chunker.add('if balance < -1 && k > right(t).key', (vis) => null, [], depth);
                 chunker.add('perform left rotation to re-balance t',
                     (vis, r) => {
-                        // vis.graph.setFunctionName(`balance= ${balance}, `);
-                        // vis.graph.setFunctionInsertText('case RR');
-                        vis.graph.setFunctionBRText(`Node(${r}): balance=${balance}, case RR`)
+                        vis.graph.setFunctionName(`Rotaiton: `);
+                        vis.graph.setFunctionInsertText(`RR`);
+                        vis.graph.setFunctionNode(`${r}`);
+                        vis.graph.clearSelect_Circle_Count();
+                        vis.graph.setSelect_Circle_Count(r);
+                        vis.graph.setFunctionBalance(balance);
                     },
                     [root.key],
                     depth
@@ -524,15 +542,20 @@ export default {
                 // console.log("RRR");
                 root = RRR(root, parentNode, rotateDepth);
                 chunker.add('return leftRotate(t)', (vis) => {
-                    vis.graph.setFunctionBRText('');
+                    vis.graph.setFunctionNode(null);
+                    vis.graph.setFunctionBalance(null);
+                    vis.graph.clearSelect_Circle_Count();
                 }, [], depth);
             } else if (balance > 1 && key > root.left.key) {
                 chunker.add('if balance > 1 && k > left(t).key', (vis) => null, [], depth);
                 chunker.add('perform left rotation on the left subtree',
                     (vis, r) => {
-                        // vis.graph.setFunctionName(`balance= ${balance}, `);
-                        // vis.graph.setFunctionInsertText(`case LR`);
-                        vis.graph.setFunctionBRText(`Node(${r}): balance=${balance}, case LR`)
+                        vis.graph.setFunctionName(`Rotaiton: `);
+                        vis.graph.setFunctionInsertText(`LR`);
+                        vis.graph.clearSelect_Circle_Count();
+                        vis.graph.setSelect_Circle_Count(r);
+                        vis.graph.setFunctionNode(`${r}`);
+                        vis.graph.setFunctionBalance(balance);
                     },
                     [root.key],
                     depth
@@ -540,23 +563,30 @@ export default {
                 // console.log("LRR");
                 root = LRR(root, parentNode, rotateDepth);
                 chunker.add('return rightRotate(t) after leftRotate', (vis) => {
-                    vis.graph.setFunctionBRText('');
+                    vis.graph.setFunctionNode(null);
+                    vis.graph.setFunctionBalance(null);
+                    vis.graph.clearSelect_Circle_Count();
                 }, [], depth);
             } else if (balance < -1 && key < root.right.key) {
                 chunker.add('if balance < -1 && k < right(t).key', (vis) => null, [], depth);
                 // console.log("RLR");
                 chunker.add('perform right rotation on the right subtree',
                     (vis, r) => {
-                        // vis.graph.setFunctionName(`balance= ${balance}, `);
-                        // vis.graph.setFunctionInsertText('case RL');
-                        vis.graph.setFunctionBRText(`Node(${r}): balance=${balance}, case RL`)
+                        vis.graph.setFunctionName(`Rotaiton: `);
+                        vis.graph.setFunctionInsertText(`RL`);
+                        vis.graph.setFunctionNode(`${r}`);
+                        vis.graph.clearSelect_Circle_Count();
+                        vis.graph.setSelect_Circle_Count(r);
+                        vis.graph.setFunctionBalance(balance);
                     },
                     [root.key],
                     depth
                 );
                 root = RLR(root, parentNode, rotateDepth);
                 chunker.add('return leftRotate(t) after rightRotate', (vis) => {
-                    vis.graph.setFunctionBRText('');
+                    vis.graph.setFunctionNode(null);
+                    vis.graph.setFunctionBalance(null);
+                    vis.graph.clearSelect_Circle_Count();
                 }, [], depth);
             }
 
@@ -570,45 +600,57 @@ export default {
             return root;
         }
 
-        // Populate the ArrayTracer using nodes
+        // init the tree with the first key
         chunker.add(
-            't = Empty',
+            'AVLT_Insert(t, k)',
             (vis, elements) => {
                 vis.array.set(elements);
                 vis.graph.isWeighted = true;
                 vis.graph.setFunctionName('Tree is Empty');
                 vis.graph.setFunctionInsertText(``);
+                vis.array.patch(0);
             },
             [nodes],
-            0
+            1
         );
 
-        chunker.add('for each k in keys', (vis) => null, [], 0);
-        let globalRoot = null;
+        // Populate the ArrayTracer using nodes
+        chunker.add(
+            'if t = Empty',
+            (vis, k) => {
+                vis.graph.setFunctionName("AVLT_Insert");
+                vis.graph.setFunctionInsertText("( t , " + k + " )");
+            },
+            [nodes[0]],
+            1
+        );
 
-        for (let i = 0; i < nodes.length; i++) {
-            chunker.add(
-                't = AVLT_Insert(t, k)',
-                (vis, index) => {
-                    if (index > 0) vis.array.deselect(index - 1);
-                    vis.array.select(index);
-                },
-                [i],
-                0
-            );
+        chunker.add('n = new Node',
+            (vis, k) => {
+                vis.graph.addNode(k, k, 1);
+                vis.graph.layoutAVL(k, true);
+            },
+            [nodes[0]],
+            1
+        );
+
+        let globalRoot = new AVLNode(nodes[0], 1);
+
+        for (let i = 1; i < nodes.length; i++) {
             globalRoot = insert(globalRoot, nodes[i], i, null, 1);
-            chunker.add('for each k in keys', (vis) => null, [], 0);
         }
 
         chunker.add('done',
             vis => {
                 vis.graph.setFunctionInsertText();
                 vis.graph.setFunctionName("Complete");
+                vis.graph.setFunctionNode(null);
+                vis.graph.setFunctionBalance(null);
+                vis.graph.clearSelect_Circle_Count();
             },
             [],
-            0
+            1
         );
-
         return globalRoot;
     }
 };
