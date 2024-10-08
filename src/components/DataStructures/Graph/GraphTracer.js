@@ -13,6 +13,7 @@
 /* eslint-disable prefer-template */
 /* eslint-disable-next-line max-classes-per-file */
 /* eslint-disable import/no-unresolved */
+import { node } from 'prop-types';
 import AVLTreeInsertion from '../../../algorithms/controllers/AVLTreeInsertion';
 import Tracer from '../common/Tracer';
 import { distance } from '../common/util';
@@ -53,9 +54,15 @@ class GraphTracer extends Tracer {
     this.functionName = null;
     this.functionNode = null;
     this.functionBalance = null;
+    this.rectangleNode = null;
+    this.rectangle = null;
     this.tagInfo = null;
     this.logTracer = null;
     this.istc = false;
+
+    this.prevDepth = 0;
+    this.pauseLayout = false;
+    this.prebHeight = 0;  // restore the previous height of the node
   }
 
   /* 
@@ -282,6 +289,94 @@ class GraphTracer extends Tracer {
     this.layout();
   }
 
+  setRect(x_r, y_u, x_l, y_d) {
+    if (this.rectangle == null) {
+      this.rectangle = [x_r, y_u, x_l, y_d, ''];
+    } else {
+      if (x_r < this.rectangle[0]) {
+        this.rectangle[0] = x_r;
+      }
+      if (y_u < this.rectangle[1]) {
+        this.rectangle[1] = y_u;
+      }
+      if (x_l > this.rectangle[2]) {
+        this.rectangle[2] = x_l;
+      }
+      if (y_d > this.rectangle[3]) {
+        this.rectangle[3] = y_d;
+      }
+      if (this.functionName == `Rotaiton: `) {
+        this.rectangle[4] = this.functionInsertText;
+      }
+    }
+  }
+
+  Children_Balance() {
+    // Traversal of the entire tree, counting number of leaves.
+    let maxDepth = 0;
+    let marked = {};
+    let root = Number(this.functionNode);
+    let nodeDepth = {};
+    this.rectangleNode = [];
+
+    //console.log(`??????????? Node ID: ${root}`);
+
+    const recursiveAnalyze = (id, depth) => {
+
+      marked[id] = true;
+      nodeDepth[id] = depth;
+      if (maxDepth < depth) maxDepth = depth;
+      const linkedNodeIds = this.findLinkedNodeIds(id, false);
+      for (const linkedNodeId of linkedNodeIds) {
+        if (marked[linkedNodeId]) continue;
+        recursiveAnalyze(linkedNodeId, depth + 1);
+      }
+    };
+    recursiveAnalyze(this.root, 0);
+
+    let mark = {};
+    const recursive = (id) => {
+      mark[id] = true;
+
+      this.rectangleNode.push(id);
+      //console.log(`|||||||||||||||||||||: ${id} depth ${nodeDepth[id]} `);
+
+      const linkedNodeIds = this.findLinkedNodeIds(id, false);
+      for (const linkedNodeId of linkedNodeIds) {
+        if (mark[linkedNodeId]) continue;
+        if (nodeDepth[linkedNodeId] < nodeDepth[root]) continue;
+
+        recursive(linkedNodeId);
+      }
+    };
+    recursive(root);
+  }
+
+  rectangle_size() {
+    // this.clearRect();
+    // this.setRect();
+    if (this.rectangleNode != null) {
+      for (const id of this.rectangleNode) {
+        const node = this.findNode(id);
+        if (node != null && node.x != null && node.y != null) {
+          this.setRect(node.x, node.y, node.x, node.y);
+          //console.log(`freezDepth! Node ID: ${node.id} - Coordinates: x = ${node.x}, y = ${node.y}, Function Name: ${this.functionName}`);
+          //this.clearRect();
+        }
+      }
+    }
+
+  }
+
+  clearRect() {
+    //this.rectangleNode = null;
+    this.rectangle = null;
+  }
+
+  clearRectNode() {
+    this.rectangleNode = null;
+  }
+
   addResult(text, id) {
     this.findNode(id).Result = text;
   }
@@ -396,7 +491,7 @@ class GraphTracer extends Tracer {
   }
 
   layout() {
-    if (this.callLayout === null) {
+    if (this.callLayout === null || this.pauseLayout) {
       return;
     }
     const { method, args } = this.callLayout;
@@ -606,7 +701,7 @@ class GraphTracer extends Tracer {
     recursivePosition(rootNode, 0, 0);
   }
 
-  layoutAVL(root = 0, sorted = false) {
+  layoutAVL(root = 0, sorted = false, freezDepth = false) {
     this.root = root;
     this.callLayout = { method: this.layoutAVL, args: arguments };
     const rect = this.getRect();
@@ -624,17 +719,26 @@ class GraphTracer extends Tracer {
     let maxDepth = 0;
     const nodeDepth = {};
     let marked = {};
-    const recursiveAnalyze = (id, depth) => {
-      marked[id] = true;
-      nodeDepth[id] = depth;
-      if (maxDepth < depth) maxDepth = depth;
-      const linkedNodeIds = this.findLinkedNodeIds(id, false);
-      for (const linkedNodeId of linkedNodeIds) {
-        if (marked[linkedNodeId]) continue;
-        recursiveAnalyze(linkedNodeId, depth + 1);
-      }
-    };
-    recursiveAnalyze(root, 0);
+    // Use 'freezDepth' to control the depth of the tree
+    if (!freezDepth) {
+
+      // Normally calculate the depth of the tree
+      const recursiveAnalyze = (id, depth) => {
+        marked[id] = true;
+        nodeDepth[id] = depth;
+        if (maxDepth < depth) maxDepth = depth;
+        const linkedNodeIds = this.findLinkedNodeIds(id, false);
+        for (const linkedNodeId of linkedNodeIds) {
+          if (marked[linkedNodeId]) continue;
+          recursiveAnalyze(linkedNodeId, depth + 1);
+        }
+      };
+      recursiveAnalyze(root, 0);
+      this.prevDepth = maxDepth; // store the previous depth
+    } else {
+      // kept the nodes in the same position as the previous layout
+      maxDepth = this.prevDepth;
+    }
 
     // Calculates node's x and y.
     // adjust hGap to some function of node number later//
@@ -644,6 +748,8 @@ class GraphTracer extends Tracer {
     const recursivePosition = (node, h, v) => {
       marked[node.id] = true;
       // 120 magic number to center root node//
+      // node.x = rect.left + h * this.hGap + 120;
+      // node.y = rect.top + v * this.vGap;
       node.x = rect.left + h * hGap + 120;
       node.y = rect.top + v * vGap;
       /* used to debug, delete in merge
@@ -651,6 +757,12 @@ class GraphTracer extends Tracer {
       console.log(middle_x + " " + h + " " + hGap + " " +node.id);
       console.log(middle_y + " " + v + " " + vGap + " " +node.id);
       */
+      if (this.functionName == `Rotaiton: `) {
+        this.clearRect();
+        //this.Children_Balance();
+        this.rectangle_size();
+      }
+
       const linkedNodes = this.findLinkedNodes(node.id, false);
       if (sorted) linkedNodes.sort((a, b) => a.id - b.id);
       for (const linkedNode of linkedNodes) {
@@ -886,12 +998,27 @@ class GraphTracer extends Tracer {
   }
 
   setFunctionBalance(functionBalance) {
+
+    if (functionBalance != null && (functionBalance > 1 || functionBalance < -1)) {
+      this.Children_Balance();
+      this.rectangle_size();
+    } else {
+      this.clearRect();
+      this.clearRectNode();
+    }
     this.functionBalance = functionBalance;
   }
 
   // dispaly the function name on the AVL tree
   setFunctionName(name) {
     this.functionName = name;
+    // if (this.functionName !== `Rotaiton: `) {
+    //   this.clearRect();
+    //   this.clearRectNode();
+    // } else {
+    //   this.Children_Balance();
+    //   this.rectangle_size();
+    // }
   }
 
 
@@ -961,6 +1088,26 @@ class GraphTracer extends Tracer {
     _node.visitedCount3 = 0;
     _node.visitedCount4 = 0;
   }
+
+  setPauseLayout(b = true) {
+    (b ? this.pauseLayout = true : this.pauseLayout = false)
+  }
+
+  setNodePosition(n, x, y) {
+    let node = this.findNode(n);
+    console.log(node);
+    node.x = x;
+    node.y = y;
+  }
+
+  storePrevHeight(prebHeight) {
+    this.prebHeight = prebHeight;
+  }
+  getPrevHeight() {
+    return this.prebHeight;
+  }
+
+
 }
 
 export default GraphTracer;

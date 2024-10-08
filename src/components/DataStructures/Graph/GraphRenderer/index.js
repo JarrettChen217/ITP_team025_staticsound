@@ -18,6 +18,8 @@ import { classes, distance } from '../../common/util';
 import styles from './GraphRenderer.module.scss';
 import { mode } from '../../../top/Settings';
 
+import GraphTracer from '../../Graph/GraphTracer';
+
 let modename;
 function switchmode(modetype = mode()) {
   switch (modetype) {
@@ -87,7 +89,10 @@ class GraphRenderer extends Renderer {
       const node = this.props.data.findNode(this.selectedNode.id);
       node.x = x;
       node.y = y;
+
       this.refresh();
+      this.props.data.clearRect();
+      this.props.data.rectangle_size();
     } else if (this.selectedNode && this.props.title === 'Graph view') {
       // Ignore mouse movement if Graph view was used
       this.refresh();
@@ -420,7 +425,7 @@ class GraphRenderer extends Renderer {
   }
 
   renderData() {
-    const { nodes, edges, isDirected, isWeighted, dimensions, text, functionInsertText, functionNode, functionBalance, tagInfo } =
+    const { nodes, edges, isDirected, isWeighted, dimensions, text, functionInsertText, functionNode, functionBalance, rectangle, tagInfo } =
       this.props.data;
     const {
       baseWidth,
@@ -625,6 +630,34 @@ class GraphRenderer extends Renderer {
               </g>
             );
           })}
+
+        {/* Select rectangle */}
+        <g>
+          {rectangle != null && (
+            <>
+              <text className={classes(styles.select_color)}// Correctly moved this inside the text tag
+
+                fontSize={50} // font size
+                x={rectangle[0] - 30} // Adjusted x position to center it relative to the rectangle
+                y={rectangle[1] - 90} // Adjusted y position to center it relative to the rectangle
+              >
+                {rectangle[4]} {/* Make sure text is defined and properly passed */}
+              </text>
+              <rect
+                className={classes(
+                  styles.select_rect, // Apply the .rect class styles
+                  styles && styles.backgroundStyle // Optionally apply additional styles
+                )}
+                x={rectangle[0] - 50} // x position
+                y={rectangle[1] - 70} // y position
+                width={rectangle[2] - rectangle[0] + 100} // width of the rectangle
+                height={rectangle[3] - rectangle[1] + 120} // height of the rectangle
+              />
+
+            </>
+          )}
+        </g>
+
         {/* node graph */}
         {nodes.map((node) => {
           const {
@@ -679,23 +712,21 @@ class GraphRenderer extends Renderer {
                 functionBalance != null && (functionBalance < -1 || functionBalance > 1) ? (
                   <circle
                     className={classes(
-                      styles.select_circle,
+                      styles.select_circle_f,
                       style && style.backgroundStyle
                     )}
-                    style={{ '--stroke-color': '#ff0000' }}
                     r={nodeRadius}
                   />
                 ) : (
                   <circle
                     className={classes(
-                      styles.select_circle,
+                      styles.select_circle_t,
                       style && style.backgroundStyle
                     )}
                     r={nodeRadius}
                   />
                 )
               )}
-
 
               <circle
                 className={classes(
@@ -734,73 +765,78 @@ class GraphRenderer extends Renderer {
             </motion.g>
           );
         })}
-        <text
-          style={{ fill: '#ff0000' }}
-          textAnchor="middle"
-          fontSize={50} // font size
-          x={- 80}
-          y={- 350}
-        >
-          {text}
-        </text>
 
-        <text className={classes(styles.text)}
-          x={+ 530}
-          y={- 250}
-          textAnchor="middle">
-          <tspan className={styles.pseudocode_function}>
-            {this.props.data.functionName}
-          </tspan>
-          {functionInsertText}
-        </text>
 
-        <text className={classes(styles.text)}
-          x={+400}
-          y={-200}
-          textAnchor="middle">
-          {functionNode != null && (
+
+        {/* Text */}
+        <g>
+          <text className={classes(styles.select_color)}
+            textAnchor="middle"
+            fontSize={50} // font size
+            x={- 80}
+            y={- 350}
+          >
+            {text}
+          </text>
+
+          <text className={classes(styles.text)}
+            x={+ 530}
+            y={- 250}
+            textAnchor="middle">
             <tspan className={styles.pseudocode_function}>
-              {"Node["}
+              {this.props.data.functionName}
             </tspan>
-          )}
-          {functionNode}
+            {functionInsertText}
+          </text>
 
-          {functionNode != null && (
-            <tspan className={styles.pseudocode_function}>
-              {"] => "}
-            </tspan>
-          )}
-        </text>
+          <text className={classes(styles.text)}
+            x={+400}
+            y={-200}
+            textAnchor="middle">
+            {functionNode != null && (
+              <tspan className={styles.pseudocode_function}>
+                {"Node["}
+              </tspan>
+            )}
+            {functionNode}
 
-        <text className={classes(styles.text)}
-          x={+650}
-          y={-200}
-          textAnchor="middle">
+            {functionNode != null && (
+              <tspan className={styles.pseudocode_function}>
+                {"] : "}
+              </tspan>
+            )}
+          </text>
 
-          {functionBalance != null && (functionBalance < -1 || functionBalance > 1) ? (
-            <tspan style={{ fill: '#ff0000', fontWeight: 'bold' }}>
+          <text className={classes(styles.text)}
+            x={+650}
+            y={-200}
+            textAnchor="middle">
 
-              {"Balance: "}
-              {functionBalance}
-            </tspan>
-          ) : (
-            <tspan>
-              {functionBalance != null && (
-                <tspan className={styles.pseudocode_function}>
-                  {"Balance: "}
-                </tspan>
-              )}
-              {functionBalance}
-            </tspan>
-          )}
-        </text>
+            {functionBalance != null && (functionBalance < -1 || functionBalance > 1) ? (
+              <tspan className={classes(styles.select_color)} style={{ fontWeight: 'bold' }} >
+                {"Balance: "}
+                {functionBalance}
+              </tspan>
+            ) : (
+              <tspan>
+                {functionBalance != null && (
+                  <tspan className={styles.pseudocode_function}>
+                    {"Balance: "}
+                  </tspan>
+                )}
+                {functionBalance}
+              </tspan>
+            )}
+          </text>
 
-        <text className={classes(styles.text)}
-          x={+ 530}
-          y={- 150}
-          textAnchor="middle">
-          {tagInfo}
-        </text>
+          <text className={classes(styles.text)}
+            x={+ 530}
+            y={- 150}
+            textAnchor="middle">
+            {tagInfo}
+          </text>
+        </g>
+
       </svg>
     );
   }
